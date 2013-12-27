@@ -5,14 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"github.com/dotcloud/docker/pkg/netlink"
-	"github.com/dotcloud/docker/utils"
+	"github.com/dotcloud/docker/pkg/user"
 	"github.com/syndtr/gocapability/capability"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"syscall"
 )
@@ -92,30 +91,24 @@ func setupWorkingDirectory(args *DockerInitArgs) error {
 	return nil
 }
 
-// Takes care of dropping privileges to the desired user
+// Takes care of dropping privileges to the desired user and setting supplementary groups.
 func changeUser(args *DockerInitArgs) error {
-	if args.user == "" {
-		return nil
-	}
-	userent, err := utils.UserLookup(args.user)
+	uid, gid, suppGids, err := user.GetUserGroupSupplementary(
+		args.user,
+		syscall.Getuid(), syscall.Getgid(),
+	)
 	if err != nil {
-		return fmt.Errorf("Unable to find user %v: %v", args.user, err)
+		return err
 	}
 
-	uid, err := strconv.Atoi(userent.Uid)
-	if err != nil {
-		return fmt.Errorf("Invalid uid: %v", userent.Uid)
+	if err := syscall.Setgroups(suppGids); err != nil {
+		return fmt.Errorf("Setgroups failed: %v", err)
 	}
-	gid, err := strconv.Atoi(userent.Gid)
-	if err != nil {
-		return fmt.Errorf("Invalid gid: %v", userent.Gid)
-	}
-
 	if err := syscall.Setgid(gid); err != nil {
-		return fmt.Errorf("setgid failed: %v", err)
+		return fmt.Errorf("Setgid failed: %v", err)
 	}
 	if err := syscall.Setuid(uid); err != nil {
-		return fmt.Errorf("setuid failed: %v", err)
+		return fmt.Errorf("Setuid failed: %v", err)
 	}
 
 	return nil
