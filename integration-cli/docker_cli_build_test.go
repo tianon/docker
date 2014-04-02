@@ -37,7 +37,7 @@ func TestBuildAddRelative(t *testing.T) {
 
 	go deleteImages("foobuiladdrelative")
 
-	logDone("build - build an image with sixty build steps")
+	logDone("build - build an image with relative ADD paths")
 }
 
 // TODO: TestCaching
