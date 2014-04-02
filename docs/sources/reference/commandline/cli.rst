@@ -74,7 +74,7 @@ Commands
       -G, --group="docker": Group to assign the unix socket specified by -H when running in daemon mode; use '' (the empty string) to disable setting of a group
       --api-enable-cors=false: Enable CORS headers in the remote API
       -b, --bridge="": Attach containers to a pre-existing network bridge; use 'none' to disable container networking
-      --bip="": Use this CIDR notation address for the network bridge's IP, not compatible with -b
+      -bip="": Use this CIDR notation address for the network bridge's IP, not compatible with -b
       -d, --daemon=false: Enable daemon mode
       --dns=[]: Force docker to use specific DNS servers
       --dns-search=[]: Force Docker to use specific DNS search domains
@@ -881,10 +881,32 @@ Known Issues (kill)
 
 ::
 
-    Usage: docker load < repository.tar
+    Usage: docker load 
 
-    Loads a tarred repository from the standard input stream.
-    Restores both images and tags.
+    Load an image from a tar archive on STDIN
+
+      -i, --input="": Read from a tar archive file, instead of STDIN
+
+Loads a tarred repository from a file or the standard input stream.
+Restores both images and tags.
+
+.. code-block:: bash
+
+   $ sudo docker images
+   REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
+   $ sudo docker load < busybox.tar
+   $ sudo docker images
+   REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
+   busybox             latest              769b9341d937        7 weeks ago         2.489 MB
+   $ sudo docker load --input fedora.tar
+   $ sudo docker images
+   REPOSITORY          TAG                 IMAGE ID            CREATED             VIRTUAL SIZE
+   busybox             latest              769b9341d937        7 weeks ago         2.489 MB
+   fedora              rawhide             0d20aec6529d        7 weeks ago         387 MB
+   fedora              20                  58394af37342        7 weeks ago         385.5 MB
+   fedora              heisenbug           58394af37342        7 weeks ago         385.5 MB
+   fedora              latest              58394af37342        7 weeks ago         385.5 MB
+
 
 .. _cli_login:
 
@@ -985,11 +1007,9 @@ The last container is marked as a ``Ghost`` container. It is a container that wa
 
 ::
 
-    Usage: docker pull NAME
+    Usage: docker pull NAME[:TAG]
 
     Pull an image or a repository from the registry
-
-      -t, --tag="": Download tagged image in repository
 
 
 .. _cli_push:
@@ -999,7 +1019,7 @@ The last container is marked as a ``Ghost`` container. It is a container that wa
 
 ::
 
-    Usage: docker push NAME
+    Usage: docker push NAME[:TAG]
 
     Push an image or a repository to the registry
 
@@ -1130,6 +1150,7 @@ image is removed.
       --cidfile="": Write the container ID to the file
       -d, --detach=false: Detached mode: Run container in the background, print new container id
       -e, --env=[]: Set environment variables
+      --env-file="": Read in a line delimited file of ENV variables
       -h, --hostname="": Container host name
       -i, --interactive=false: Keep stdin open even if not attached
       --privileged=false: Give extended privileges to this container
@@ -1145,7 +1166,7 @@ image is removed.
       --volumes-from="": Mount all volumes from the given container(s)
       --entrypoint="": Overwrite the default entrypoint set by the image
       -w, --workdir="": Working directory inside the container
-      --lxc-conf=[]: Add custom lxc options --lxc-conf="lxc.cgroup.cpuset.cpus = 0,1"
+      --lxc-conf=[]: (lxc exec-driver only) Add custom lxc options --lxc-conf="lxc.cgroup.cpuset.cpus = 0,1"
       --sig-proxy=true: Proxify all received signal to the process (even in non-tty mode)
       --expose=[]: Expose a port from the container without publishing it to your host
       --link="": Add link to another container (name:alias)
@@ -1264,6 +1285,54 @@ explains in detail how to manipulate ports in Docker.
 
 .. code-block:: bash
 
+    $ sudo docker run -e MYVAR1 --env MYVAR2=foo --env-file ./env.list ubuntu bash
+
+This sets environmental variables in the container. For illustration all three
+flags are shown here. Where ``-e``, ``--env`` take an environment variable and
+value, or if no "=" is provided, then that variable's current value is passed
+through (i.e. $MYVAR1 from the host is set to $MYVAR1 in the container). All
+three flags, ``-e``, ``--env``  and ``--env-file`` can be repeated.
+
+Regardless of the order of these three flags, the ``--env-file`` are processed
+first, and then ``-e``/``--env`` flags. This way, the ``-e`` or ``--env`` will
+override variables as needed.
+
+.. code-block:: bash
+
+    $ cat ./env.list
+    TEST_FOO=BAR
+    $ sudo docker run --env TEST_FOO="This is a test" --env-file ./env.list busybox env | grep TEST_FOO
+    TEST_FOO=This is a test
+
+The ``--env-file`` flag takes a filename as an argument and expects each line
+to be in the VAR=VAL format, mimicking the argument passed to ``--env``.
+Comment lines need only be prefixed with ``#``
+
+An example of a file passed with ``--env-file``
+
+.. code-block:: bash
+
+    $ cat ./env.list
+    TEST_FOO=BAR
+
+    # this is a comment
+    TEST_APP_DEST_HOST=10.10.0.127
+    TEST_APP_DEST_PORT=8888
+
+    # pass through this variable from the caller
+    TEST_PASSTHROUGH
+    $ sudo TEST_PASSTHROUGH=howdy docker run --env-file ./env.list busybox env
+    HOME=/
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    HOSTNAME=5198e0745561
+    TEST_FOO=BAR
+    TEST_APP_DEST_HOST=10.10.0.127
+    TEST_APP_DEST_PORT=8888
+    TEST_PASSTHROUGH=howdy
+
+
+.. code-block:: bash
+
     $ sudo docker run --name console -t -i ubuntu bash
 
 This will create and run a new container with the container name
@@ -1317,10 +1386,27 @@ This example shows 5 containers that might be set up to test a web application c
 
 ::
 
-    Usage: docker save image > repository.tar
+    Usage: docker save IMAGE
 
-    Streams a tarred repository to the standard output stream.
-    Contains all parent layers, and all tags + versions.
+    Save an image to a tar archive (streamed to stdout by default)
+
+      -o, --output="": Write to an file, instead of STDOUT
+
+
+Produces a tarred repository to the standard output stream.
+Contains all parent layers, and all tags + versions, or specified repo:tag.
+
+.. code-block:: bash
+
+   $ sudo docker save busybox > busybox.tar
+   $ ls -sh b.tar
+   2.7M b.tar
+   $ sudo docker save --output busybox.tar busybox
+   $ ls -sh b.tar
+   2.7M b.tar
+   $ sudo docker save -o fedora-all.tar fedora
+   $ sudo docker save -o fedora-latest.tar fedora:latest
+
 
 .. _cli_search:
 
@@ -1360,11 +1446,11 @@ This example shows 5 containers that might be set up to test a web application c
 
     Usage: docker stop [OPTIONS] CONTAINER [CONTAINER...]
 
-    Stop a running container (Send SIGTERM)
+    Stop a running container (Send SIGTERM, and then SIGKILL after grace period)
 
-      -t, --time=10: Number of seconds to wait for the container to stop.
+      -t, --time=10: Number of seconds to wait for the container to stop before killing it.
 
-The main process inside the container will receive SIGTERM.
+The main process inside the container will receive SIGTERM, and after a grace period, SIGKILL
 
 .. _cli_tag:
 
