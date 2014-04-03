@@ -274,8 +274,9 @@ the container's filesystem at path ``<dest>``.
 source directory being built (also called the *context* of the build) or
 a remote file URL.
 
-``<dest>`` is the absolute path to which the source will be copied inside the
-destination container.
+``<dest>`` can be an absolute path, or relative to the current ``WORKDIR``. The 
+``<source>`` will be copied to that location in the destination container and 
+resulting image.
 
 All new files and directories are created with mode 0755, uid and gid
 0.
@@ -404,8 +405,8 @@ the image.
 
     ``WORKDIR /path/to/workdir``
 
-The ``WORKDIR`` instruction sets the working directory for the ``RUN``, ``CMD`` and
-``ENTRYPOINT``  Dockerfile commands that follow it.
+The ``WORKDIR`` instruction sets the working directory for the ``ADD``, ``RUN``, ``CMD`` and
+``ENTRYPOINT`` Dockerfile commands that follow it.
 
 It can be used multiple times in the one Dockerfile.  If a relative path is
 provided, it will be relative to the path of the previous ``WORKDIR``
